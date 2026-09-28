@@ -450,7 +450,7 @@
 <div class="wrap">
 
   <div class="masthead">
-    <h1>Verse Card<span class="app-version">v2.2</span></h1>
+    <h1>Verse Card<span class="app-version">v2.3</span></h1>
     <div class="tab" id="masthead-count"></div>
   </div>
 
@@ -550,7 +550,7 @@
             <button class="btn-ghost" id="add-dictate" type="button">🎤 Dictate</button>
           </div>
           <div class="choice-sub" id="add-dictate-note" style="margin-bottom:6px;"></div>
-          <textarea id="add-text" placeholder="Type or paste the verse exactly as written"></textarea>
+          <textarea id="add-text" placeholder="Type or paste the verse. Or paste straight from Bible.com (verse, reference and link) and the book, chapter, verse and version fill in for you."></textarea>
         </div>
         <div class="feedback" id="add-feedback"></div>
         <button class="btn-primary btn-block" id="add-save">Save verse</button>
@@ -957,21 +957,49 @@
     importFile.click();
   });
 
-  function stripWrappingQuotes(s) {
-    return s.replace(/^[\s"“”'’]+/, "").replace(/[\s"“”'’]+$/, "").trim();
+  // <<PARSE-START>>
+  // Removes ONE outer wrapper (straight ' or " quotes, or doubled curly quotes)
+  // that Bible.com puts around the copied text. Quote marks that belong to the
+  // verse itself (like “How can someone be born...!” in John 3:4) are kept.
+  function cleanVerseText(s) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (s.length > 2 && ((s.charAt(0) === "'" && s.charAt(s.length - 1) === "'") ||
+                         (s.charAt(0) === '"' && s.charAt(s.length - 1) === '"'))) {
+      s = s.slice(1, -1).trim();
+    } else if (s.length > 4 && s.slice(0, 2) === "\u201c\u201c" && s.slice(-2) === "\u201d\u201d") {
+      s = s.slice(2, -2).trim();
+    }
+    return s;
   }
+  function stripWrappingQuotes(s) { return cleanVerseText(s); }
 
   // Bible.com copy/paste format:
   //   'Verse text...'
   //
   //   John 3:16-17
-  //   [https://www.bible.com/bible/111/JHN.3.16-17.NIV](https://www.bible.com/bible/111/JHN.3.16-17.NIV)
+  //   https://www.bible.com/bible/111/JHN.3.16-17.NIV
   //
-  // The verse text comes FIRST, followed by the reference, followed by the
-  // Bible.com link. The translation/version is taken from the final segment
-  // of the Bible.com URL (NIV, KJV, etc.). We also keep support for the
-  // older export/bulk format: "John 3:16 | NIV" followed by the text.
-  var REF_LINE_RE = /^(.+?)\s+(\d+):(\d+)(?:-(\d+))?\s*(?:\|\s*(.+))?$/;
+  // The verse text comes FIRST, then the reference, then the Bible.com link.
+  // The link is read for the book, chapter, verse and translation, and is
+  // NEVER included in the saved verse text. We also keep support for the older
+  // export/bulk format: "John 3:16 | NIV" followed by the text.
+  var REF_LINE_RE = /^(.+?)\s+(\d+):(\d+)(?:\s*[-\u2013\u2014]\s*(\d+))?(?:\s*\|\s*(.+)|\s+([A-Za-z][A-Za-z0-9]{1,9}))?$/;
+  var BIBLE_URL_RE = /(?:\[[^\]]*\]\()?https?:\/\/(?:www\.)?bible\.com\/[^\s)\]]+\)?/i;
+
+  var USFM_CODES = ["GEN","EXO","LEV","NUM","DEU","JOS","JDG","RUT","1SA","2SA","1KI","2KI","1CH","2CH","EZR","NEH","EST","JOB","PSA","PRO","ECC","SNG","ISA","JER","LAM","EZK","DAN","HOS","JOL","AMO","OBA","JON","MIC","NAM","HAB","ZEP","HAG","ZEC","MAL","MAT","MRK","LUK","JHN","ACT","ROM","1CO","2CO","GAL","EPH","PHP","COL","1TH","2TH","1TI","2TI","TIT","PHM","HEB","JAS","1PE","2PE","1JN","2JN","3JN","JUD","REV"];
+  var BOOK_ALIASES = {
+    "psalm": "Psalms", "song of songs": "Song of Solomon", "songs of solomon": "Song of Solomon",
+    "song of solomon": "Song of Solomon", "canticles": "Song of Solomon", "revelations": "Revelation",
+    "revelation of john": "Revelation"
+  };
+
+  function resolveBookName(name) {
+    var n = String(name || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (!n) return null;
+    if (BOOK_ALIASES[n]) return BOOK_ALIASES[n];
+    var hit = BIBLE_BOOKS.find(function (b) { return b[0].toLowerCase() === n; });
+    return hit ? hit[0] : null;
+  }
 
   function cleanImportedText(s) {
     s = String(s || "").trim();
@@ -979,10 +1007,37 @@
     return md ? md[2] : s;
   }
 
+  // Turn a Bible.com version code into the name the app uses.
+  function normalizeVersion(code) {
+    code = String(code || "").trim();
+    if (!code) return "";
+    var up = code.toUpperCase();
+    if (up === "MSG") return "The Message";
+    if (/^NASB(1995|2020)$/.test(up)) return "NASB";
+    var hit = VERSIONS.find(function (x) { return x.v !== "Other" && x.v.toUpperCase() === up; });
+    return hit ? hit.v : code;
+  }
+
+  // https://www.bible.com/bible/111/JHN.3.4.NIV -> John 3:4, NIV
+  function parseBibleUrl(url) {
+    var m = String(url || "").match(/\/([A-Za-z0-9]{3})\.(\d+)\.(\d+)(?:-(\d+))?\.([A-Za-z0-9_-]+)(?:[?#\/]|$)/);
+    if (!m) return null;
+    var idx = USFM_CODES.indexOf(m[1].toUpperCase());
+    if (idx < 0) return null;
+    return {
+      bookName: BIBLE_BOOKS[idx][0],
+      chapter: parseInt(m[2], 10),
+      verse: parseInt(m[3], 10),
+      verseEnd: m[4] ? parseInt(m[4], 10) : parseInt(m[3], 10),
+      version: normalizeVersion(m[5])
+    };
+  }
+
   function versionFromBibleUrl(url) {
-    var clean = cleanImportedText(url).trim();
-    var m = clean.match(/\.([A-Za-z0-9_-]+)\)?$/i);
-    return m ? m[1].toUpperCase() : "";
+    var info = parseBibleUrl(cleanImportedText(url));
+    if (info) return info.version;
+    var m = cleanImportedText(url).trim().match(/\.([A-Za-z0-9_-]+)\)?$/i);
+    return m ? normalizeVersion(m[1]) : "";
   }
 
   function parseReferenceLine(head) {
@@ -993,48 +1048,93 @@
       chapter: parseInt(m[2], 10),
       verse: parseInt(m[3], 10),
       verseEnd: m[4] ? parseInt(m[4], 10) : parseInt(m[3], 10),
-      version: m[5] ? m[5].trim() : ""
+      version: (m[5] || m[6] || "").trim()
     };
   }
 
-  function parseBibleComBlock(lines) {
-    var refIndex = -1, parsedRef = null;
-    for (var i = 0; i < lines.length; i++) {
-      var candidate = parseReferenceLine(lines[i]);
-      if (candidate) {
-        refIndex = i;
-        parsedRef = candidate;
-        break;
-      }
+  // A reference line only counts if the book is a real book of the Bible.
+  function refLineOf(line) {
+    var r = parseReferenceLine(line);
+    if (!r) return null;
+    var book = resolveBookName(r.bookName);
+    if (!book) return null;
+    r.bookName = book;
+    return r;
+  }
+
+  // Build one entry from the lines collected before a Bible.com link.
+  function buildBibleEntry(buf, url) {
+    var info = url ? parseBibleUrl(cleanImportedText(url)) : null;
+    var refIdx = -1, refLine = null;
+    for (var j = buf.length - 1; j >= 0; j--) {
+      var r = refLineOf(buf[j]);
+      if (r) { refIdx = j; refLine = r; break; }
     }
-    if (refIndex < 0 || !parsedRef) return null;
-
-    // Everything after the reference is ignored except the Bible.com URL,
-    // which is used only to determine the translation code.
-    var link = "";
-    for (var j = refIndex + 1; j < lines.length; j++) {
-      var candidateLink = cleanImportedText(lines[j]);
-      if (/^https?:\/\//i.test(candidateLink)) {
-        link = candidateLink;
-        break;
-      }
-    }
-
-    var verseLines = lines.slice(0, refIndex);
-    var text = stripWrappingQuotes(verseLines.join(" ")
-      .replace(/\s+/g, " ").trim());
-    if (!text) return null;
-
+    var textLines = refIdx >= 0 ? buf.slice(0, refIdx) : buf.slice();
+    var text = cleanVerseText(textLines.join(" "));
+    var src = info || refLine;
+    var label = refIdx >= 0 ? buf[refIdx] : (buf[0] || "(blank)");
+    if (!src || !text) return { bad: true, label: label };
+    var ver = (info && info.version) || (refLine && normalizeVersion(refLine.version)) || "";
     return {
-      bookName: parsedRef.bookName,
-      chapter: parsedRef.chapter,
-      verse: parsedRef.verse,
-      verseEnd: parsedRef.verseEnd,
-      version: parsedRef.version || versionFromBibleUrl(link) ||
-        currentAddVersion() || state.defaultVersion,
+      bookName: src.bookName,
+      chapter: src.chapter,
+      verse: src.verse,
+      verseEnd: src.verseEnd,
+      version: ver,
       text: text
     };
   }
+
+  // Reads every "text / reference / Bible.com link" entry in the pasted text.
+  function extractBibleEntries(raw) {
+    var lines = String(raw || "").replace(/\r\n?/g, "\n").split("\n")
+      .map(function (l) { return l.trim(); })
+      .filter(Boolean);
+    var entries = [], buf = [];
+    for (var i = 0; i < lines.length; i++) {
+      var um = lines[i].match(BIBLE_URL_RE);
+      if (um) {
+        var rest = lines[i].replace(um[0], "").trim();
+        if (rest) buf.push(rest);
+        entries.push(buildBibleEntry(buf, um[0]));
+        buf = [];
+      } else {
+        buf.push(lines[i]);
+      }
+    }
+    return entries;
+  }
+
+  // Works out what was pasted into the verse box. Returns a list of entries,
+  // or null when it is ordinary verse text that should be pasted as-is.
+  function extractPasteEntries(raw) {
+    raw = String(raw || "");
+    if (BIBLE_URL_RE.test(raw)) {
+      var viaLink = extractBibleEntries(raw);
+      return viaLink.length ? viaLink : null;
+    }
+    var lines = raw.replace(/\r\n?/g, "\n").split("\n")
+      .map(function (l) { return l.trim(); })
+      .filter(Boolean);
+    if (lines.length < 2) return null;
+    var refCount = lines.filter(function (l) { return !!refLineOf(l); }).length;
+    if (refCount !== 1) return null;
+    // Text first, reference last (Bible.com without the link)
+    if (refLineOf(lines[lines.length - 1])) return [buildBibleEntry(lines, "")];
+    // Older format: reference first, then the text
+    if (refLineOf(lines[0])) {
+      var ref = refLineOf(lines[0]);
+      var text = cleanVerseText(lines.slice(1).join(" "));
+      if (!text) return null;
+      return [{
+        bookName: ref.bookName, chapter: ref.chapter, verse: ref.verse,
+        verseEnd: ref.verseEnd, version: normalizeVersion(ref.version), text: text
+      }];
+    }
+    return null;
+  }
+  // <<PARSE-END>>
 
   function addParsedVerse(parsed, added, skipped, label) {
     if (!parsed) { skipped.push(label || "(blank)"); return; }
@@ -1101,71 +1201,11 @@
   }
 
   function parseBibleComText(raw) {
-    var lines = raw.replace(/\r\n/g, "\n").split("\n");
     var added = [], skipped = [];
-    var cursor = 0;
-
-    while (cursor < lines.length) {
-      // Skip blank lines before the next Bible.com entry.
-      while (cursor < lines.length && !lines[cursor].trim()) cursor++;
-      if (cursor >= lines.length) break;
-
-      var refIndex = -1, parsedRef = null;
-      for (var i = cursor; i < lines.length; i++) {
-        var candidate = parseReferenceLine(lines[i]);
-        if (candidate) {
-          refIndex = i;
-          parsedRef = candidate;
-          break;
-        }
-      }
-
-      if (refIndex < 0 || !parsedRef) break;
-
-      // Everything before the reference is the quoted verse text.
-      var verseLines = lines.slice(cursor, refIndex)
-        .map(function (line) { return line.trim(); })
-        .filter(function (line) { return line.length > 0; });
-
-      var text = stripWrappingQuotes(
-        verseLines.join(" ").replace(/\s+/g, " ").trim()
-      );
-
-      // The next URL is used only for its final translation code.
-      // The URL itself is never included in the saved verse text.
-      var link = "";
-      var nextIndex = refIndex + 1;
-      for (; nextIndex < lines.length; nextIndex++) {
-        var candidateLink = cleanImportedText(lines[nextIndex]);
-        if (!candidateLink) continue;
-        if (/^https?:\/\//i.test(candidateLink)) {
-          link = candidateLink;
-          nextIndex++;
-          break;
-        }
-
-        // If another reference appears before a link, stop here so the
-        // current entry can still be imported using the selected default.
-        if (parseReferenceLine(lines[nextIndex])) break;
-      }
-
-      if (!text) {
-        skipped.push(lines[refIndex].trim() || "(blank)");
-      } else {
-        addParsedVerse({
-          bookName: parsedRef.bookName,
-          chapter: parsedRef.chapter,
-          verse: parsedRef.verse,
-          verseEnd: parsedRef.verseEnd,
-          version: parsedRef.version || versionFromBibleUrl(link) ||
-            currentAddVersion() || state.defaultVersion,
-          text: text
-        }, added, skipped, lines[refIndex].trim());
-      }
-
-      cursor = nextIndex;
-    }
-
+    extractBibleEntries(raw).forEach(function (e) {
+      if (e.bad) { skipped.push(e.label); return; }
+      addParsedVerse(e, added, skipped, e.bookName + " " + e.chapter + ":" + e.verse);
+    });
     return { added: added, skipped: skipped };
   }
 
@@ -1221,6 +1261,103 @@
     return { added: added, skipped: skipped };
   }
 
+  // ---------- paste straight from Bible.com into the verse box ----------
+  var addTextEl = document.getElementById("add-text");
+
+  function setAddVersion(code) {
+    code = String(code || "").trim();
+    if (!code) return;
+    var hit = VERSIONS.find(function (x) { return x.v !== "Other" && x.v.toLowerCase() === code.toLowerCase(); });
+    if (hit) {
+      addVersionSel.value = hit.v;
+      addVersionOtherInput.value = "";
+    } else {
+      addVersionSel.value = "Other";
+      addVersionOtherInput.value = code;
+    }
+    updateVersionOtherUI();
+  }
+
+  function entryLabel(e) {
+    var ref = e.bookName + " " + e.chapter + ":" + e.verse + (e.verseEnd > e.verse ? "-" + e.verseEnd : "");
+    return ref + (e.version ? " (" + e.version + ")" : "");
+  }
+
+  // Fills the Book / Chapter / Verse / Through verse / Version / text fields.
+  function applyEntryToAddForm(e) {
+    var vc = versesInChapter(e.bookName, e.chapter);
+    if (!vc || e.verse < 1 || e.verse > vc || e.verseEnd < e.verse || e.verseEnd > vc) return false;
+    addBookSel.value = e.bookName;
+    populateChapters(e.chapter);
+    populateVerses(e.verse);
+    addVerseEndSel.value = String(e.verseEnd);
+    if (e.version) setAddVersion(e.version);
+    addTextEl.value = e.text;
+    return true;
+  }
+
+  // Returns true when the pasted text was recognised and handled.
+  function handleSmartPaste(raw) {
+    var entries = extractPasteEntries(raw);
+    if (!entries) return false;
+    var fb = document.getElementById("add-feedback");
+    var good = entries.filter(function (e) { return !e.bad; });
+
+    if (!good.length) {
+      fb.className = "feedback";
+      fb.textContent = "Couldn't read that copy from Bible.com. Make sure the verse, the reference (like John 3:4) and the link are all included.";
+      return true;
+    }
+
+    if (entries.length === 1) {
+      if (!applyEntryToAddForm(good[0])) {
+        fb.className = "feedback";
+        fb.textContent = "That reference doesn't look right (" + good[0].bookName + " " + good[0].chapter + ":" + good[0].verse + "). Check it and try again.";
+        return true;
+      }
+      fb.className = "feedback ok";
+      fb.textContent = "Filled in " + entryLabel(good[0]) + " — check it against your Bible, then tap Save verse.";
+      return true;
+    }
+
+    // Several verses pasted at once: save them all.
+    var added = [], skipped = [];
+    good.forEach(function (e) {
+      addParsedVerse(e, added, skipped, entryLabel(e));
+    });
+    var fresh = added.filter(function (v) {
+      return !state.verses.some(function (x) {
+        return x.reference === v.reference && x.version === v.version && x.text === v.text;
+      });
+    });
+    var problems = skipped.length + (entries.length - good.length);
+    if (fresh.length) {
+      state.verses = state.verses.concat(fresh);
+      saveState();
+      renderLibrary();
+    }
+    fb.className = fresh.length ? "feedback ok" : "feedback";
+    fb.textContent = fresh.length
+      ? "Added " + fresh.length + (fresh.length === 1 ? " verse" : " verses") + " from Bible.com" +
+        (problems ? "; couldn't read " + problems + " entr" + (problems === 1 ? "y." : "ies.") : ".")
+      : "Nothing new to add — those verses are already saved" + (problems ? ", or couldn't be read." : ".");
+    if (fresh.length) {
+      addTextEl.value = "";
+      setTimeout(function () { showScreen("home"); }, 900);
+    }
+    return true;
+  }
+
+  addTextEl.addEventListener("paste", function (ev) {
+    var cd = ev.clipboardData || window.clipboardData;
+    var raw = cd ? cd.getData("text") : "";
+    if (raw && handleSmartPaste(raw)) ev.preventDefault();
+  });
+  // Backup for keyboards that insert pasted text without a paste event.
+  addTextEl.addEventListener("input", function () {
+    if (/bible\.com\//i.test(addTextEl.value)) handleSmartPaste(addTextEl.value);
+  });
+
   importFile.addEventListener("change", function () {
     var file = importFile.files && importFile.files[0];
     if (!file) return;
@@ -1233,6 +1370,12 @@
     reader.onload = function () {
       var raw = String(reader.result || "");
       if (importMode === "single") {
+        var pasted = extractPasteEntries(raw);
+        if (pasted && pasted.length === 1 && !pasted[0].bad && applyEntryToAddForm(pasted[0])) {
+          fb.className = "feedback ok";
+          fb.textContent = "Filled in " + entryLabel(pasted[0]) + " from " + file.name + " — check it against your Bible, then tap Save verse.";
+          return;
+        }
         var text = stripWrappingQuotes(raw);
         if (!text) {
           fb.className = "feedback";
