@@ -360,6 +360,24 @@
   .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
   .chip { background: var(--paper-raised); color: var(--ink); border: 1px solid var(--card-edge); border-radius: 999px; padding: 7px 13px; font: 500 14px var(--font-sans); cursor: pointer; }
   .chip:hover, .chip.on { border-color: var(--gold); background: var(--gold-soft); }
+  .lbl-tip { display: flex; align-items: center; margin-bottom: 6px; }
+  .lbl-tip label { margin: 0; }
+  .row > .lbl-tip, .hint-control .lbl-tip { flex: 0 0 auto; margin-bottom: 0; white-space: nowrap; }
+  .row > .tip { flex: 0 0 22px; align-self: center; }
+  .tip { flex: 0 0 22px; min-width: 22px; min-height: 22px; box-sizing: border-box; line-height: 1; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 6px; padding: 0; border-radius: 50%; border: 1px solid var(--card-edge); background: var(--paper-raised); color: var(--ink-soft); font: 600 13px var(--font-sans); cursor: pointer; vertical-align: middle; }
+  .tip:hover, .tip:focus { border-color: var(--gold); background: var(--gold-soft); }
+  #tip-bubble { position: fixed; z-index: 1000; max-width: 260px; padding: 10px 12px; border-radius: 10px; background: var(--ink); color: var(--paper); font: 400 14px/1.4 var(--font-sans); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .help-steps details { border: 1px solid var(--card-edge); border-radius: 12px; margin: 0 0 10px; background: var(--paper-raised); }
+  .help-steps summary { cursor: pointer; padding: 14px 16px; font: 600 16px var(--font-sans); color: var(--ink); }
+  .help-steps .help-open { padding: 0 16px 14px; }
+  .help-steps ol { margin: 0 0 8px; padding-left: 22px; }
+  .help-steps li, .help-steps p { font: 400 16px/1.55 var(--font-sans); color: var(--ink-soft); margin: 0 0 8px; }
+  .help-steps .help-go { margin-top: 6px; }
+  .help-link { display: block; width: 100%; text-align: center; background: transparent; color: var(--ink-soft); font: 500 14px var(--font-sans); text-decoration: underline; padding: 4px 0 12px; cursor: pointer; }
+  .help-body h3 { font: 600 16px var(--font-sans); margin: 16px 0 4px; color: var(--ink); }
+  .help-body h3:first-child { margin-top: 0; }
+  .help-body p, .help-body li { font: 400 15px/1.5 var(--font-sans); color: var(--ink-soft); margin: 0 0 6px; }
+  .help-body ul { margin: 0 0 6px; padding-left: 20px; }
   .hidden { display: none !important; }
 
   ::selection { background: var(--gold-soft); }
@@ -453,12 +471,13 @@
 <div class="wrap">
 
   <div class="masthead">
-    <h1>Verse Card<span class="app-version">v2.6</span></h1>
+    <h1>Verse Card<span class="app-version">v2.8.1</span></h1>
     <div class="tab" id="masthead-count"></div>
   </div>
 
   <!-- ===== HOME ===== -->
   <div id="screen-home">
+    <button class="help-link" id="btn-help" type="button">New here? How to use this app</button>
     <div class="card">
       <div class="card-inner choice-stack">
         <button class="choice" id="btn-random">
@@ -495,9 +514,9 @@
     <div class="card">
       <div class="card-inner">
         <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-          <label style="margin:0;">Your saved verses</label>
+          <span class="lbl-tip"><label style="margin:0;">Your saved verses</label><button class="tip" type="button" aria-label="Help" data-tip="Export saves a backup file. Import restores one. Share sends your verses to someone else. Verses are stored only on this device.">?</button></span>
           <div class="row" style="gap:8px;">
-            <button class="btn-ghost" id="btn-share" type="button">📤 Share</button>
+            <button class="btn-ghost" id="btn-share" type="button" title="Send your saved verses to someone">📤 Share</button>
             <button class="btn-ghost" id="btn-export" type="button">Export</button>
             <button class="btn-ghost" id="btn-import" type="button">Import</button>
           </div>
@@ -538,7 +557,7 @@
         </div>
         <div class="row">
           <div class="field">
-            <label for="add-version">Version</label>
+            <span class="lbl-tip"><label for="add-version">Version</label><button class="tip" type="button" aria-label="Help" data-tip="Pick the Bible translation you are learning. KJV, WEB and ASV can fill in the words for you. For others, paste the words yourself.">?</button></span>
             <select id="add-version"></select>
           </div>
           <div class="field hidden" id="add-version-other-field">
@@ -553,19 +572,131 @@
             <button class="btn-ghost" id="add-import-bulk" type="button">Bulk-import (.txt)</button>
           </div>
           <input type="file" id="add-import-file" accept=".txt,text/plain" class="hidden">
-          <div class="choice-sub" id="import-note">A single-verse file fills the box below. A bulk file adds several saved verses at once — see How to Use for the format.</div>
+          <div class="choice-sub" id="import-note">A single-verse file fills the box below. A bulk file adds several saved verses at once — tap "How to use this app" on the first page for the format.</div>
         </div>
         <div class="field">
-          <label for="add-text">Verse text</label>
+          <label>Want to look it up yourself?</label>
+          <button class="btn-ghost" id="add-biblecom" type="button" style="text-decoration:underline;padding-left:0;">Look it up on Bible.com ↗</button>
+          <div class="choice-sub">Find your verse there, copy it, then paste it in the Verse text box below. The book, chapter, verse and version fill in automatically.</div>
+        </div>
+        <div class="field">
+          <span class="lbl-tip"><label for="add-text">Verse text</label><button class="tip" type="button" aria-label="Help" data-tip="The words of the verse. Type them, dictate them, fill them in automatically, or paste from Bible.com.">?</button></span>
           <div class="row" style="margin-bottom:6px;">
-            <button class="btn-ghost" id="add-dictate" type="button">🎤 Dictate</button>
-            <button class="btn-ghost" id="add-fetch" type="button">📖 Fill in verse text</button>
+            <button class="btn-ghost" id="add-dictate" type="button" title="Speak the verse instead of typing it">🎤 Dictate</button>
+            <button class="btn-ghost" id="add-fetch" type="button" title="Fetch the words for KJV, WEB, ASV or YLT">📖 Fill in verse text</button><button class="tip" type="button" aria-label="Help" data-tip="Gets the words for the reference above. Works for KJV, WEB, ASV and YLT (New Testament) when you are online.">?</button>
           </div>
           <div class="choice-sub" id="add-dictate-note" style="margin-bottom:6px;"></div>
           <textarea id="add-text" placeholder="Type or paste the verse. Or paste straight from Bible.com (verse, reference and link) and the book, chapter, verse and version fill in for you."></textarea>
         </div>
         <div class="feedback" id="add-feedback"></div>
         <button class="btn-primary btn-block" id="add-save">Save verse</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HELP ===== -->
+  <div id="screen-help" class="hidden">
+    <div class="top-nav">
+      <button class="btn-ghost" id="help-back">← Back</button>
+    </div>
+    <div class="card no-rule">
+      <div class="card-inner help-steps">
+        <h3 style="margin:0 0 4px;font:600 20px var(--font-sans);">How to use Verse Card</h3>
+        <p>Tap a question below to see the steps.</p>
+
+        <details>
+          <summary>How do I add my first verse?</summary>
+          <div class="help-open">
+            <ol>
+              <li>On the first page, tap <b>Find a verse</b>.</li>
+              <li>Type a verse like <b>John 3:16</b>, or tap a topic such as <b>Prayer</b>.</li>
+              <li>Tap the verse you want.</li>
+              <li>Wait a moment while the words appear. Then tap <b>Save verse</b>.</li>
+            </ol>
+            <p>If the words don't appear, see "The words didn't fill in" below.</p>
+            <button class="btn-ghost help-go" data-go="find" type="button">Take me to Find a verse &rarr;</button>
+          </div>
+        </details>
+
+        <details>
+          <summary>How do I practice a verse?</summary>
+          <div class="help-open">
+            <ol>
+              <li>On the first page, tap <b>Practice a random verse</b> (the app picks for you) or <b>Practice a specific verse</b> (you pick).</li>
+              <li>Type the verse from memory.</li>
+              <li>If you get a word wrong, the app shows what you had right and the next word. Keep going.</li>
+              <li>Stuck? Slide <b>Hint fullness</b> to the right to see more of the verse.</li>
+              <li>Tap <b>Listen</b> to hear the verse read out loud.</li>
+            </ol>
+          </div>
+        </details>
+
+        <details>
+          <summary>Can I use my own Bible (NIV, ESV, etc.)?</summary>
+          <div class="help-open">
+            <ol>
+              <li>Tap <b>Add a new verse</b>.</li>
+              <li>Tap <b>Look it up on Bible.com</b>. A new page opens.</li>
+              <li>Find your verse, then copy it (verse, reference, and link all together is fine).</li>
+              <li>Come back to the app and paste it into the big box. The book, chapter, verse, and version fill in for you.</li>
+              <li>Tap <b>Save verse</b>.</li>
+            </ol>
+            <button class="btn-ghost help-go" data-go="add" type="button">Take me to Add a new verse &rarr;</button>
+          </div>
+        </details>
+
+        <details>
+          <summary>The words didn't fill in</summary>
+          <div class="help-open">
+            <p>The app can only fill in the words for these Bibles: <b>KJV, WEB, ASV</b>, and <b>YLT</b> (New Testament only). It also needs the internet.</p>
+            <ol>
+              <li>Change <b>Version</b> to KJV or WEB, then tap <b>Fill in verse text</b>.</li>
+              <li>Or use the Bible.com steps above to paste the words yourself.</li>
+            </ol>
+          </div>
+        </details>
+
+        <details>
+          <summary>How do I keep my verses safe or move them to a new phone?</summary>
+          <div class="help-open">
+            <p>Your verses are saved only in this browser, on this device. If you clear your browser's data or switch phones, they are gone, so make a backup now and then.</p>
+            <ol>
+              <li>On the first page, find <b>Your saved verses</b> and tap <b>Export</b>. A backup file is saved.</li>
+              <li>To restore, tap <b>Import</b> and choose that file.</li>
+              <li>To send your verses to a friend, tap <b>Share</b>.</li>
+            </ol>
+          </div>
+        </details>
+
+        <details>
+          <summary>How do I add many verses at once?</summary>
+          <div class="help-open">
+            <p>Tap <b>Add a new verse</b>, then <b>Bulk-import (.txt)</b>, and choose a plain text file. Write each verse like this, with a blank line between verses:</p>
+            <p style="white-space:pre-line;background:var(--paper);padding:10px 12px;border-radius:8px;">John 3:16 | KJV
+For God so loved the world...
+
+Psalm 23:1 | KJV
+The LORD is my shepherd...</p>
+            <p>The line with the version (| KJV) is optional. Files made by <b>Export</b> already look like this.</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>What do the little ? buttons do?</summary>
+          <div class="help-open">
+            <p>Tap any <b>?</b> in the app for a short explanation of that button. Tap anywhere else to close it.</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Tips</summary>
+          <div class="help-open">
+            <ul style="padding-left:20px;margin:0;">
+              <li>A few minutes a day works better than one long session.</li>
+              <li>On your phone, use your browser's share or menu button to add this page to your Home Screen so it opens like an app.</li>
+            </ul>
+          </div>
+        </details>
       </div>
     </div>
   </div>
@@ -577,7 +708,7 @@
     </div>
     <div class="card no-rule">
       <div class="card-inner">
-        <label for="find-q">Search</label>
+        <span class="lbl-tip"><label for="find-q">Search</label><button class="tip" type="button" aria-label="Help" data-tip="Type a reference like John 3:16 or Psalm 23, or a word like prayer or kids to narrow the topic buttons.">?</button></span>
         <input type="text" id="find-q" placeholder="John 3:16, Psalm 23, or a topic like prayer" autocomplete="off">
         <div class="choice-sub" id="find-note" style="margin:8px 0 10px;">Type a reference, or tap a topic.</div>
         <div class="chip-row" id="find-topics"></div>
@@ -621,7 +752,7 @@
         <div class="verse-display" id="quiz-display"></div>
 
         <div class="hint-control">
-          <label for="hint-slider">Hint fullness</label>
+          <span class="lbl-tip"><label for="hint-slider">Hint fullness</label><button class="tip" type="button" aria-label="Help" data-tip="Slide right to see more of the verse as a hint. Slide left to see less and test yourself.">?</button></span>
           <input type="range" id="hint-slider" min="0" max="100" value="0" step="5">
           <span class="hint-pct" id="hint-pct">0%</span>
         </div>
@@ -820,6 +951,7 @@
     home: document.getElementById("screen-home"),
     add: document.getElementById("screen-add"),
     find: document.getElementById("screen-find"),
+    help: document.getElementById("screen-help"),
     pick: document.getElementById("screen-pick"),
     quiz: document.getElementById("screen-quiz"),
     complete: document.getElementById("screen-complete")
@@ -827,6 +959,8 @@
 
   function showScreen(name) {
     stopSpeaking();
+    if (typeof closeTip === "function") closeTip();
+    window.scrollTo(0, 0);
     Object.keys(screens).forEach(function (k) {
       screens[k].classList.toggle("hidden", k !== name);
     });
@@ -1451,7 +1585,7 @@
         }
         fb.className = result.added.length ? "feedback ok" : "feedback";
         fb.textContent = "Imported " + result.added.length + (result.added.length === 1 ? " verse" : " verses") +
-          (result.skipped.length ? "; couldn't parse " + result.skipped.length + " entr" + (result.skipped.length === 1 ? "y" : "ies") + " — see How to Use for the file format." : ".");
+          (result.skipped.length ? "; couldn't parse " + result.skipped.length + " entr" + (result.skipped.length === 1 ? "y" : "ies") + " — tap 'How to use this app' on the first page for the file format." : ".");
         if (result.added.length) {
           setTimeout(function () { showScreen("home"); }, 900);
         }
@@ -1738,6 +1872,48 @@
   }
   document.getElementById("add-fetch").addEventListener("click", function () { fetchVerseText(false); });
 
+  // ---------- tooltips + help shortcuts + Bible.com link (v2.8) ----------
+  var tipEl = null;
+  function closeTip() { if (tipEl) { tipEl.remove(); tipEl = null; } }
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest ? ev.target.closest(".tip") : null;
+    if (!t) { closeTip(); return; }
+    ev.preventDefault();
+    ev.stopPropagation();
+    var same = tipEl && tipEl._for === t;
+    closeTip();
+    if (same) return;
+    tipEl = document.createElement("div");
+    tipEl.id = "tip-bubble";
+    tipEl.setAttribute("role", "tooltip");
+    tipEl.textContent = t.getAttribute("data-tip");
+    tipEl._for = t;
+    document.body.appendChild(tipEl);
+    var r = t.getBoundingClientRect();
+    var w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    var left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8));
+    var top = r.bottom + 8;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    tipEl.style.left = left + "px";
+    tipEl.style.top = top + "px";
+  }, true);
+  window.addEventListener("scroll", closeTip, true);
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeTip(); });
+
+  document.getElementById("add-biblecom").addEventListener("click", function () {
+    var ref = getAddRef();
+    var url = ref
+      ? "https://www.bible.com/search/bible?q=" + encodeURIComponent(ref)
+      : "https://www.bible.com/";
+    window.open(url, "_blank", "noopener");
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".help-go"), function (b) {
+    b.addEventListener("click", function () {
+      document.getElementById(b.getAttribute("data-go") === "find" ? "btn-find" : "btn-add").click();
+    });
+  });
+
   // ---------- find a verse (v2.5): reference search + curated topic index ----------
   // Topics store references only. Verse text is never bundled; picking a result
   // pre-fills Book / Chapter / Verse on the Add screen and you paste the text.
@@ -1847,6 +2023,8 @@
     showScreen("find");
   });
   document.getElementById("find-back").addEventListener("click", function () { showScreen("home"); });
+  document.getElementById("btn-help").addEventListener("click", function () { showScreen("help"); });
+  document.getElementById("help-back").addEventListener("click", function () { showScreen("home"); });
 
   // ---------- quiz ----------
   var quizState = null; // { verse, words, solved, hintPct }
